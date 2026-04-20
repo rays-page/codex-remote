@@ -17,7 +17,6 @@ final class CodexRemoteStore: ObservableObject {
     @Published var activeDiff = ""
     @Published var pendingApproval: PendingApproval?
     @Published var pendingPrompt: PendingPrompt?
-    @Published var showingConnectionSheet = false
     @Published var transientError: String?
 
     private let client = CodexRemoteClient()
@@ -28,7 +27,7 @@ final class CodexRemoteStore: ObservableObject {
     private var activeTurnIDs: [String: String] = [:]
     private var hasAttemptedAutoConnect = false
 
-    init(profileStore: ConnectionProfileStore = .standard) {
+    init(profileStore: ConnectionProfileStore = .shared()) {
         self.profileStore = profileStore
         self.profile = profileStore.load()
 
@@ -45,16 +44,35 @@ final class CodexRemoteStore: ObservableObject {
         }
     }
 
-    func onAppear() async {
+    var selectedThread: RemoteThread? {
+        guard let selectedThreadID else { return nil }
+        return threads.first(where: { $0.id == selectedThreadID })
+    }
+
+    var needsAttention: Bool {
+        pendingApproval != nil || pendingPrompt != nil
+    }
+
+    func onAppear(prefersImmediateConnect: Bool = false) async {
         guard !hasAttemptedAutoConnect else { return }
         hasAttemptedAutoConnect = true
-        if profile.autoConnectOnLaunch, !profile.token.isEmpty {
+
+        if (prefersImmediateConnect || profile.autoConnectOnLaunch), profile.hasRelayConfiguration {
             await connect()
         }
     }
 
     func connect() async {
-        guard !profile.websocketURL.isEmpty else {
+        if case .connecting = connectionState {
+            return
+        }
+
+        if case .connected = connectionState {
+            await refreshAll()
+            return
+        }
+
+        guard !profile.websocketURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             transientError = "Add a websocket URL first."
             return
         }
@@ -69,8 +87,7 @@ final class CodexRemoteStore: ObservableObject {
             courierState = .idle
             courierQuote = "on watch"
             saveProfile()
-            await refreshModels()
-            await refreshThreads()
+            await refreshAll()
         } catch {
             connectionState = .failed(error.localizedDescription)
             courierState = .error
@@ -84,6 +101,12 @@ final class CodexRemoteStore: ObservableObject {
         connectionState = .disconnected
         courierState = .disconnected
         courierQuote = "off watch"
+        activeTurnIDs.removeAll()
+    }
+
+    func refreshAll() async {
+        await refreshModels()
+        await refreshThreads()
     }
 
     func saveProfile() {
@@ -92,6 +115,21 @@ final class CodexRemoteStore: ObservableObject {
 
     func updateProfile(_ newProfile: ConnectionProfile) {
         profile = newProfile
+        saveProfile()
+    }
+
+    func updateDefaultModel(_ modelID: String) {
+        profile.defaultModel = modelID
+        saveProfile()
+    }
+
+    func updateReasoningEffort(_ effort: ReasoningPreference) {
+        profile.reasoningEffort = effort
+        saveProfile()
+    }
+
+    func updateApprovalPolicy(_ policy: ApprovalPreference) {
+        profile.approvalPolicy = policy
         saveProfile()
     }
 
@@ -107,7 +145,14 @@ final class CodexRemoteStore: ObservableObject {
             profile.token = token
         }
         saveProfile()
-        showingConnectionSheet = false
+    }
+
+    func prepareForNewThread() {
+        selectedThreadID = nil
+        timeline = []
+        activeDiff = ""
+        courierState = .ping
+        courierQuote = "fresh page"
     }
 
     func refreshThreads() async {
@@ -128,10 +173,18 @@ final class CodexRemoteStore: ObservableObject {
 
             let parsed = data.map(parseThread).sorted { $0.updatedAt > $1.updatedAt }
             threads = parsed
-            if selectedThreadID == nil {
-                selectedThreadID = parsed.first?.id
+
+            if let selectedThreadID, !parsed.contains(where: { $0.id == selectedThreadID }) {
+                self.selectedThreadID = nil
+                timeline = []
+                activeDiff = ""
             }
-            if let selectedThreadID {
+
+            if self.selectedThreadID == nil {
+                self.selectedThreadID = parsed.first?.id
+            }
+
+            if let selectedThreadID = self.selectedThreadID {
                 await loadThread(id: selectedThreadID)
             }
         } catch {
@@ -205,7 +258,7 @@ final class CodexRemoteStore: ObservableObject {
         }
     }
 
-    func sendCurrentDraft() async {
+    func sendCurrentDraft(startNewThread: Bool = false) async {
         let trimmed = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard case .connected = connectionState else {
@@ -218,7 +271,7 @@ final class CodexRemoteStore: ObservableObject {
 
         do {
             let threadID: String
-            if let selectedThreadID {
+            if !startNewThread, let selectedThreadID {
                 threadID = selectedThreadID
             } else {
                 let threadResult = try await client.sendRequest(
@@ -244,6 +297,7 @@ final class CodexRemoteStore: ObservableObject {
                 }
 
                 let thread = parseThread(threadJSON)
+                threads.removeAll { $0.id == thread.id }
                 threads.insert(thread, at: 0)
                 selectedThreadID = thread.id
                 threadID = startedThreadID

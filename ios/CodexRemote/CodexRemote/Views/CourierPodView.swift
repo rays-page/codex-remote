@@ -1,30 +1,36 @@
 import SwiftUI
 
 struct CourierPodView: View {
+    enum Style {
+        case regular
+        case compact
+    }
+
     let state: CourierPodState
     let quote: String
+    var style: Style = .regular
 
     @State private var frameIndex = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(currentFrame)
-                .font(.system(size: 17, weight: .bold, design: .monospaced))
+                .font(.system(size: style == .compact ? 13 : 17, weight: .bold, design: .monospaced))
                 .foregroundStyle(state.artColor)
                 .shadow(color: .black.opacity(0.45), radius: 0, x: 2, y: 2)
                 .shadow(color: state.artColor.opacity(0.18), radius: 14, x: 0, y: 0)
 
             Text(quote.isEmpty ? state.fallbackQuote : quote)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .font(.system(size: style == .compact ? 10 : 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(state.quoteColor)
         }
-        .padding(14)
+        .padding(style == .compact ? 10 : 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: style == .compact ? 18 : 24, style: .continuous)
                 .fill(AppTheme.elevatedSurface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: style == .compact ? 18 : 24, style: .continuous)
                         .stroke(AppTheme.border, lineWidth: 1)
                 )
         )

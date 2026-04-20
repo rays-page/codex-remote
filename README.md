@@ -1,11 +1,12 @@
 # Codex Remote
 
-Current direction: the next major milestone is converting the product into a containing iPhone app plus an iMessage extension. The handoff plan for that work lives in `docs/imessage-extension-handoff.md`.
+Current direction: `Codex Remote` now ships as a containing iPhone app plus an iMessage extension. The handoff plan that drove this refactor remains in `docs/imessage-extension-handoff.md`.
 
 `Codex Remote` is a two-part self-hosted control surface for Codex:
 
 - a lightweight Windows launcher that stages the official Codex CLI runtime and exposes its websocket `app-server`
-- a native iPhone client that connects to that websocket and gives you a focused remote session UI with the courier-pod companion persona
+- a native iPhone containing app for setup, pairing, defaults, and fallback diagnostics
+- an iMessage extension that becomes the primary lightweight control surface inside Messages, with the courier-pod companion persona intact
 
 The design goal is simple: leave a Codex-capable desktop running, step away, and keep steering threads from your phone without remoting into the whole machine.
 
@@ -18,7 +19,8 @@ The design goal is simple: leave a Codex-capable desktop running, step away, and
   - `install_shortcut.ps1`: creates a `Codex Remote` shortcut on the Windows desktop
   - `tests/`: unit tests for the launcher logic
 - `ios/CodexRemote/`
-  - SwiftUI iPhone app that connects to the Codex websocket app-server
+  - SwiftUI containing app for setup and fallback control
+  - Messages extension target that reuses the same relay client, models, and control store
 - `docs/`
   - setup and security notes
 
@@ -56,7 +58,7 @@ py -3 .\desktop\codex_remote_desktop.py doctor
 py -3 -m unittest discover -s .\desktop\tests -v
 ```
 
-## iPhone Client
+## iPhone App And Messages Extension
 
 Open `ios/CodexRemote/CodexRemote.xcodeproj` on a Mac in Xcode. The app expects:
 
@@ -65,11 +67,21 @@ Open `ios/CodexRemote/CodexRemote.xcodeproj` on a Mac in Xcode. The app expects:
 - optional default workspace path
 - optional default model and sandbox preference
 
-The app also accepts a pairing deep link in this format:
+The containing app accepts a pairing deep link in this format:
 
 ```text
 codexremote://pair?url=ws%3A%2F%2F192.168.1.50%3A8765&token=YOUR_TOKEN
 ```
+
+The iPhone app and the Messages extension share state this way:
+
+- App Group for non-secret defaults such as websocket URL, workspace, model, reasoning, and approval preferences
+- Keychain Sharing for the capability token
+
+Messages usage is split by presentation style:
+
+- compact mode for connection state, current-thread orientation, and fast actions
+- expanded mode for prompt entry, thread resume, model/reasoning changes, approvals, and request-user-input prompts
 
 ## Remote Access Outside Your LAN
 

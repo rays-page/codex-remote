@@ -2,76 +2,34 @@ import SwiftUI
 
 struct RootView: View {
     @ObservedObject var store: CodexRemoteStore
+    @State private var showingConnectionSheet = false
+    @State private var showingFallbackControls = false
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AppTheme.background.ignoresSafeArea()
-
+            ScrollView {
                 VStack(spacing: 16) {
-                    header
-
-                    if let pendingApproval = store.pendingApproval {
-                        approvalBanner(pendingApproval)
-                    }
-
-                    if let selected = selectedThread {
-                        SessionDetailView(
-                            thread: selected,
-                            timeline: store.timeline,
-                            activeDiff: store.activeDiff,
-                            canInterrupt: store.pendingApproval == nil && store.pendingPrompt == nil && selected.id == store.selectedThreadID,
-                            onInterrupt: {
-                                Task { await store.interruptActiveTurn() }
-                            },
-                            draftMessage: $store.draftMessage,
-                            onSend: {
-                                Task { await store.sendCurrentDraft() }
-                            }
-                        )
-                    } else {
-                        threadList
-                    }
+                    heroCard
+                    setupSummaryCard
+                    messagesGuideCard
+                    diagnosticsCard
+                    fallbackCard
                 }
                 .padding(16)
             }
+            .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle("Codex Remote")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        store.showingConnectionSheet = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                    }
-                    .tint(AppTheme.text)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 10) {
-                        Button {
-                            Task { await store.refreshThreads() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .tint(AppTheme.text)
-
-                        Button {
-                            store.selectedThreadID = nil
-                            store.timeline = []
-                            store.activeDiff = ""
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .tint(AppTheme.accent)
-                    }
-                }
-            }
         }
         .task {
             await store.onAppear()
         }
-        .sheet(isPresented: $store.showingConnectionSheet) {
+        .onChange(of: store.needsAttention) { _, needsAttention in
+            if needsAttention {
+                showingFallbackControls = true
+            }
+        }
+        .sheet(isPresented: $showingConnectionSheet) {
             ConnectionSheetView(
                 models: store.models,
                 initialProfile: store.profile,
@@ -87,9 +45,6 @@ struct RootView: View {
                 }
             )
             .presentationDetents([.large])
-        }
-        .sheet(item: $store.pendingPrompt) { prompt in
-            PromptSheet(prompt: prompt, store: store)
         }
         .alert(
             "Codex Remote",
@@ -111,7 +66,7 @@ struct RootView: View {
         .preferredColorScheme(.dark)
     }
 
-    private var header: some View {
+    private var heroCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CourierPodView(
                 state: store.courierState,
@@ -121,148 +76,119 @@ struct RootView: View {
             HStack(spacing: 10) {
                 Circle()
                     .fill(statusColor)
-                    .frame(width: 9, height: 9)
+                    .frame(width: 10, height: 10)
 
                 Text(store.connectionState.label)
-                    .foregroundStyle(AppTheme.text)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.text)
 
                 Spacer()
 
-                if case .connected = store.connectionState {
-                    Button("Disconnect") {
+                Button("Edit Setup") {
+                    showingConnectionSheet = true
+                }
+                .buttonStyle(.bordered)
+
+                Button(store.connectionState.isConnected ? "Disconnect" : "Connect") {
+                    if store.connectionState.isConnected {
                         store.disconnect()
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button("Connect") {
+                    } else {
                         Task { await store.connect() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.accent)
                 }
-            }
-            .padding(.horizontal, 8)
-        }
-    }
-
-    private var threadList: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Threads")
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.text)
-
-            if store.threads.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("No remote threads yet.")
-                        .foregroundStyle(AppTheme.text)
-                        .font(.headline)
-                    Text("Connect to the desktop relay, then start a new turn from the compose box or open an existing Codex thread.")
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(AppTheme.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(AppTheme.border, lineWidth: 1)
-                        )
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(store.threads) { thread in
-                            Button {
-                                Task { await store.selectThread(thread) }
-                            } label: {
-                                ThreadCard(thread: thread, isSelected: store.selectedThreadID == thread.id)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                VStack(spacing: 10) {
-                    TextEditor(text: $store.draftMessage)
-                        .frame(minHeight: 86, maxHeight: 120)
-                        .padding(12)
-                        .scrollContentBackground(.hidden)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .fill(AppTheme.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .stroke(AppTheme.border, lineWidth: 1)
-                                )
-                        )
-                        .foregroundStyle(AppTheme.text)
-
-                    HStack {
-                        Spacer()
-
-                        Button("Start New Thread") {
-                            Task { await store.sendCurrentDraft() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.accent)
-                    }
-                }
+                .buttonStyle(.borderedProminent)
+                .tint(store.connectionState.isConnected ? AppTheme.warning : AppTheme.accent)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(cardBackground)
     }
 
-    private func approvalBanner(_ prompt: PendingApproval) -> some View {
+    private var setupSummaryCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(prompt.title)
+            Text("Setup")
                 .font(.headline)
                 .foregroundStyle(AppTheme.text)
 
-            Text(prompt.body)
-                .font(.system(size: 14, weight: .regular, design: .monospaced))
+            SummaryRow(label: "Relay", value: store.profile.websocketURL.isEmpty ? "Not set" : store.profile.websocketURL)
+            SummaryRow(label: "Token", value: store.profile.token.isEmpty ? "Missing" : "Stored in shared keychain")
+            SummaryRow(label: "Workspace", value: store.profile.defaultWorkspace.isEmpty ? "Thread decides" : store.profile.defaultWorkspace)
+            SummaryRow(label: "Model", value: store.profile.defaultModel.isEmpty ? "Thread default" : store.profile.defaultModel)
+            SummaryRow(label: "Reasoning", value: store.profile.reasoningEffort.title)
+            SummaryRow(label: "Approval", value: store.profile.approvalPolicy.title)
+
+            Text("These defaults are shared with the Messages extension through an App Group. The capability token stays out of UserDefaults.")
+                .font(.caption)
                 .foregroundStyle(AppTheme.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .background(cardBackground)
+    }
+
+    private var messagesGuideCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Use In Messages")
+                .font(.headline)
+                .foregroundStyle(AppTheme.text)
+
+            Text("Open any conversation in Messages, tap the app drawer, and choose Codex Remote.")
+                .foregroundStyle(AppTheme.text)
+
+            Text("Compact mode is for orientation and shortcuts. Expanded mode is where prompt entry, approvals, and request-for-input flows happen.")
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .padding(16)
+        .background(cardBackground)
+    }
+
+    private var diagnosticsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Fallback Diagnostics")
+                .font(.headline)
+                .foregroundStyle(AppTheme.text)
+
+            SummaryRow(label: "Recent threads", value: "\(store.threads.count)")
+            SummaryRow(label: "Loaded models", value: "\(store.models.count)")
+            SummaryRow(label: "Active thread", value: store.selectedThread?.name ?? "None")
 
             HStack {
-                ForEach(prompt.decisions, id: \.self) { decision in
-                    Button(decisionLabel(decision)) {
-                        store.submitApproval(decision: decision)
-                    }
-                    .buttonStyle(decision == "decline" || decision == "cancel" ? .bordered : .borderedProminent)
-                    .tint(decision == "decline" || decision == "cancel" ? .red : AppTheme.accent)
+                Button("Refresh Relay State") {
+                    Task { await store.refreshAll() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(!store.connectionState.isConnected)
+
+                if store.needsAttention {
+                    Text("Attention needed in the control surface below.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.warning)
                 }
             }
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(AppTheme.elevatedSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(AppTheme.warning.opacity(0.5), lineWidth: 1)
+        .background(cardBackground)
+    }
+
+    private var fallbackCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            DisclosureGroup("Fallback Control Surface", isExpanded: $showingFallbackControls) {
+                RemoteControlSurface(
+                    store: store,
+                    onShowSettings: {
+                        showingConnectionSheet = true
+                    },
+                    showsSettingsButton: false
                 )
-        )
-    }
+                .padding(.top, 12)
+            }
+            .tint(AppTheme.accent)
 
-    private func decisionLabel(_ raw: String) -> String {
-        switch raw {
-        case "acceptForSession":
-            return "Accept For Session"
-        case "decline":
-            return "Decline"
-        case "cancel":
-            return "Cancel"
-        default:
-            return "Accept"
+            Text("The iPhone app now stays focused on setup and rescue access. Messages is the primary day-to-day control surface.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
         }
-    }
-
-    private var selectedThread: RemoteThread? {
-        guard let selectedThreadID = store.selectedThreadID else { return nil }
-        return store.threads.first(where: { $0.id == selectedThreadID })
+        .padding(16)
+        .background(cardBackground)
     }
 
     private var statusColor: Color {
@@ -277,109 +203,33 @@ struct RootView: View {
             return AppTheme.secondaryText
         }
     }
-}
 
-private struct ThreadCard: View {
-    let thread: RemoteThread
-    let isSelected: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(thread.name)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.text)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if thread.waitingOnApproval {
-                    Image(systemName: "hand.raised.fill")
-                        .foregroundStyle(AppTheme.warning)
-                }
-            }
-
-            Text(thread.preview)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.secondaryText)
-                .lineLimit(2)
-
-            HStack {
-                Text(thread.statusLabel)
-                Spacer()
-                Text(thread.updatedAt.formatted(date: .omitted, time: .shortened))
-            }
-            .font(.caption)
-            .foregroundStyle(AppTheme.secondaryText)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(isSelected ? AppTheme.elevatedSurface : AppTheme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(isSelected ? AppTheme.accent.opacity(0.45) : AppTheme.border, lineWidth: 1)
-                )
-        )
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(AppTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            )
     }
 }
 
-private struct PromptSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let prompt: PendingPrompt
-    @ObservedObject var store: CodexRemoteStore
+private struct SummaryRow: View {
+    let label: String
+    let value: String
 
     var body: some View {
-        NavigationStack {
-            Form {
-                ForEach(prompt.questions) { question in
-                    Section(question.header) {
-                        Text(question.prompt)
-                            .foregroundStyle(AppTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
 
-                        if !question.options.isEmpty {
-                            Picker("Choice", selection: Binding(
-                                get: { question.answer },
-                                set: { store.updatePromptAnswer(questionID: question.id, answer: $0) }
-                            )) {
-                                Text("Select").tag("")
-                                ForEach(question.options, id: \.self) { option in
-                                    Text(option).tag(option)
-                                }
-                            }
-                        }
-
-                        if question.allowsFreeform || question.options.isEmpty {
-                            TextField(
-                                question.options.isEmpty ? "Answer" : "Other",
-                                text: Binding(
-                                    get: { question.answer },
-                                    set: { store.updatePromptAnswer(questionID: question.id, answer: $0) }
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(AppTheme.background)
-            .navigationTitle("Need Your Input")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Submit") {
-                        store.submitPromptAnswers()
-                        dismiss()
-                    }
-                }
-            }
+            Text(value)
+                .foregroundStyle(AppTheme.text)
+                .font(label == "Workspace"
+                    ? .system(size: 13, weight: .medium, design: .monospaced)
+                    : .body
+                )
         }
-        .preferredColorScheme(.dark)
     }
 }

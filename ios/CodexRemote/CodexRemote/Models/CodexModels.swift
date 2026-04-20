@@ -19,6 +19,13 @@ enum ConnectionState: Equatable {
             return "Connection Error"
         }
     }
+
+    var isConnected: Bool {
+        if case .connected = self {
+            return true
+        }
+        return false
+    }
 }
 
 struct CodexModelOption: Identifiable, Equatable {

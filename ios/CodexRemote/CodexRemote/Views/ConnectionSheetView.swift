@@ -4,6 +4,7 @@ struct ConnectionSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     let models: [CodexModelOption]
+    let initialProfile: ConnectionProfile
     let connectionState: ConnectionState
     let onSave: (ConnectionProfile) -> Void
     let onConnect: () -> Void
@@ -20,6 +21,7 @@ struct ConnectionSheetView: View {
         onDisconnect: @escaping () -> Void
     ) {
         self.models = models
+        self.initialProfile = initialProfile
         self.connectionState = connectionState
         self.onSave = onSave
         self.onConnect = onConnect
@@ -39,6 +41,8 @@ struct ConnectionSheetView: View {
                     SecureField("Capability token", text: $draft.token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                } footer: {
+                    Text("The URL syncs through the app group. The capability token is stored through shared keychain access.")
                 }
 
                 Section("Defaults") {
@@ -46,18 +50,21 @@ struct ConnectionSheetView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    if models.isEmpty {
-                        TextField("Model id, optional", text: $draft.defaultModel)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    } else {
-                        Picker("Model", selection: $draft.defaultModel) {
+                    if !models.isEmpty {
+                        Picker("Known model", selection: $draft.defaultModel) {
                             Text("Use thread default").tag("")
                             ForEach(models) { model in
                                 Text(model.displayName).tag(model.id)
                             }
+                            if !draft.defaultModel.isEmpty, !models.contains(where: { $0.id == draft.defaultModel }) {
+                                Text("Custom: \(draft.defaultModel)").tag(draft.defaultModel)
+                            }
                         }
                     }
+
+                    TextField("Custom model id (optional)", text: $draft.defaultModel)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
 
                     Picker("Sandbox", selection: $draft.defaultSandbox) {
                         ForEach(SandboxPreference.allCases) { sandbox in
@@ -87,13 +94,19 @@ struct ConnectionSheetView: View {
                 }
 
                 Section("Status") {
-                    Text(connectionState.label)
-                        .foregroundStyle(AppTheme.secondaryText)
+                    LabeledContent("Relay") {
+                        Text(connectionState.label)
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                    LabeledContent("Token") {
+                        Text(draft.token.isEmpty ? "Not configured" : "Ready")
+                            .foregroundStyle(draft.token.isEmpty ? AppTheme.secondaryText : AppTheme.success)
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
-            .navigationTitle("Connection")
+            .navigationTitle("Remote Setup")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") {

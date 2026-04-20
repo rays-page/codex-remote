@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct CodexRemoteApp: App {
-    @StateObject private var store = CodexRemoteStore()
+    @StateObject private var store = CodexRemoteStore(profileStore: .shared())
 
     var body: some Scene {
         WindowGroup {
