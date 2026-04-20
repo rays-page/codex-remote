@@ -13,25 +13,25 @@ The desktop relay remains the same core product. The Messages work is an iOS-sid
 
 ## Apple-Documented Constraints
 
-These are the platform facts this implementation should treat as fixed unless re-verified:
+Treat these as fixed unless they are re-verified against current Apple docs:
 
-1. Apple supports iMessage apps as either standalone apps or as app extensions inside an iOS/iPadOS app.
+1. Apple supports iMessage apps as either standalone apps or as app extensions inside an iOS or iPadOS app.
    - https://developer.apple.com/imessage/
    - https://developer.apple.com/design/human-interface-guidelines/imessage-apps-and-stickers
 
 2. Xcode supports adding an app extension target to an existing app project, and the extension ships inside the containing app.
    - https://developer.apple.com/documentation/technologyoverviews/app-extensions
 
-3. App extensions run in a separate process and do not automatically share storage/resources/permissions with the containing app.
+3. App extensions run in a separate process and do not automatically share storage, resources, or permissions with the containing app.
    - Use an App Group for shared non-secret data.
    - https://developer.apple.com/documentation/technologyoverviews/app-extensions
    - https://developer.apple.com/documentation/xcode/configuring-app-groups
 
-4. If app and extension need to share credentials securely, use Keychain Sharing across both targets.
+4. If the app and extension need to share credentials securely, use Keychain Sharing across both targets.
    - https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps
    - https://developer.apple.com/documentation/xcode/configuring-keychain-sharing
 
-5. Apple recommends putting shared app/extension service code into a shared framework or otherwise shared code module.
+5. Apple recommends putting shared app and extension service code into a shared framework or otherwise shared code module.
    - https://developer.apple.com/documentation/sirikit/structuring-your-code-to-support-app-extensions
 
 6. iMessage apps have compact and expanded presentation styles. Expanded mode is the right place for anything with real input or more complex controls.
@@ -48,12 +48,12 @@ These are the platform facts this implementation should treat as fixed unless re
    - https://developer.apple.com/documentation/messages/msmessagesapppresentationcontext/media
 
 9. App Store packaging note: if an already-shipped standalone iMessage app is converted into an extension of an iOS app or vice versa, Apple says that change requires a new app record.
-   - This is only relevant if/when App Store packaging is involved.
+   - This only matters if or when App Store packaging becomes relevant.
    - https://developer.apple.com/help/app-store-connect/create-an-app-record/add-imessage-app-information/
 
 ## Current Repo Reuse Map
 
-The next implementation pass should reuse these pieces instead of re-deriving them:
+The next implementation pass should reuse these pieces instead of re-deriving them.
 
 ### Keep as-is or nearly as-is
 
@@ -71,46 +71,46 @@ The next implementation pass should reuse these pieces instead of re-deriving th
   - websocket lifecycle
   - model loading
   - thread loading
-  - turn start / interrupt
+  - turn start and interrupt
   - approval handling
-  - prompt handling
+  - request-user-input handling
 - `ios/CodexRemote/CodexRemote/Views/CourierPodView.swift`
 
-### Keep conceptually but split/refactor
+### Keep conceptually but split or refactor
 
 - `CodexRemoteStore.swift`
   - split into shared session/controller logic plus target-specific presentation state
 - `RootView.swift`
-  - reuse design language selectively, but the current full standalone shell should not be the Messages UI
+  - reuse design language selectively, but the current full standalone shell should not become the Messages UI unchanged
 - `SessionDetailView.swift`
-  - salvage the timeline rendering ideas and the diff block
+  - salvage the timeline rendering ideas and diff block
 - `ConnectionSheetView.swift`
   - salvage settings fields, but the containing app should become a calmer setup surface
 
-### Treat as provisional / likely to shrink
+### Treat as provisional and likely to shrink later
 
-- the current host app’s full-screen thread browser as the primary product surface
+- the current host app's full-screen thread browser as the primary product surface
 - any host-app-only UI complexity that duplicates what the Messages extension will become
 
 ## Recommended Architecture
 
-### Product Shape
+### Product shape
 
 - `Codex Remote` containing app
   - setup
   - pairing
   - websocket URL
   - token management
-  - default workspace/model/reasoning/approval options
-  - “Open Messages” guidance
-  - fallback full app control only if worth keeping
+  - default workspace, model, reasoning, and approval options
+  - "Open Messages" guidance
+  - fallback full app control only if it still earns its keep
 
 - `Codex Remote Messages Extension`
   - quick access inside Messages
   - compact view for status and shortcuts
   - expanded view for real control
 
-### Target Layout
+### Target layout
 
 Recommended destination structure:
 
@@ -120,28 +120,28 @@ Recommended destination structure:
 
 Preferred implementation shape:
 
-1. Shared module / framework
+1. Shared module or framework
    - `ConnectionProfile`
    - `ConnectionProfileStore`
    - `CodexRemoteClient`
    - shared models
-   - app/extension-safe session controller logic
+   - app-extension-safe session controller logic
 
 2. Host app target
    - setup and settings UI
 
 3. Messages extension target
    - `MSMessagesAppViewController` root
-   - host SwiftUI view(s) via a UIKit bridge
+   - host SwiftUI views through a UIKit bridge
    - compact and expanded experiences
 
-If creating a separate internal framework is too much friction in one pass, shared source files added to both targets is acceptable as an intermediate step. The important thing is a clean split between reusable control logic and target-specific UI.
+If creating a separate internal framework adds too much friction in one pass, shared source files added to both targets is an acceptable intermediate step. The important thing is a clean split between reusable control logic and target-specific UI.
 
-### Shared Storage
+### Shared storage
 
 Use two layers:
 
-- App Group:
+- App Group for:
   - websocket URL
   - default workspace
   - default model
@@ -149,7 +149,7 @@ Use two layers:
   - approval preference
   - last selected thread metadata if desired
 
-- Keychain Sharing:
+- Keychain Sharing for:
   - capability token
 
 Do not leave the token only in plain `UserDefaults` once both targets exist.
@@ -163,8 +163,8 @@ One job only: fast orientation and action.
 Include:
 
 - connection badge
-- current target desktop/workspace label
-- active thread name or “No active thread”
+- current target desktop or workspace label
+- active thread name or "No active thread"
 - buttons:
   - `Resume`
   - `New Thread`
@@ -179,29 +179,29 @@ This should be the real control surface.
 
 Include:
 
-- courier pod header/status
+- courier pod header and status
 - prompt field
 - send button
 - interrupt button
 - thread picker or recent threads
 - model picker
 - reasoning effort picker
-- approval policy picker if still worth exposing
-- “new thread” button
+- approval policy picker if it still deserves to be exposed
+- "new thread" button
 - recent timeline output
-- approval/request-user-input surfaces
+- approval and request-user-input surfaces
 
-### Containing App UI
+### Containing app UI
 
-Reduce it to setup + fallback, not a second heavyweight primary app.
+Reduce it to setup plus fallback, not a second heavyweight primary app.
 
 Recommended host app sections:
 
 - relay connection
-- token / pairing status
+- token and pairing status
 - defaults
 - test connection button
-- “Use in Messages” explainer
+- "Use in Messages" explainer
 - optional advanced diagnostics
 
 ## Implementation Sequence
@@ -209,48 +209,48 @@ Recommended host app sections:
 ### Phase 1. Restructure for shared code
 
 1. Add a new iMessage Extension target to the Xcode project.
-2. Introduce a shared code module/framework or a shared source group used by both targets.
-3. Move transport/state code into the shared layer.
+2. Introduce a shared code module, framework, or shared source group used by both targets.
+3. Move transport and state code into the shared layer.
 4. Keep target-specific UI state out of the reusable transport layer.
 
 Definition of done:
 
-- both targets build against the same connection/profile/client code
-- no duplicate websocket client implementations
+- both targets build against the same connection, profile, and client code
+- there is no duplicate websocket client implementation
 
 ### Phase 2. Add shared persistence
 
 1. Add an App Group entitlement to both targets.
-2. Move non-secret profile/defaults persistence to the shared app group container.
+2. Move non-secret profile and defaults persistence to the shared app group container.
 3. Add Keychain Sharing for the capability token.
 4. Migrate old standard-`UserDefaults` values forward if they exist.
 
 Definition of done:
 
 - changing defaults in the host app is visible to the extension
-- token is readable from both targets through one secure path
+- the token is readable from both targets through one secure path
 
 ### Phase 3. Build the Messages extension shell
 
-1. Create `MSMessagesAppViewController` subclass for the extension.
+1. Create an `MSMessagesAppViewController` subclass for the extension.
 2. Host SwiftUI content inside it.
 3. Implement compact and expanded layouts.
 4. Request expanded mode before entering prompt text.
 
 Definition of done:
 
-- extension opens from the Messages app drawer
+- the extension opens from the Messages app drawer
 - compact mode works
 - expanded mode works
 
 ### Phase 4. Implement Codex controls in the extension
 
-1. Connect/disconnect to desktop relay.
+1. Connect and disconnect to the desktop relay.
 2. Load recent threads.
-3. Start new thread.
-4. Resume existing thread.
+3. Start a new thread.
+4. Resume an existing thread.
 5. Send turn input.
-6. Interrupt active turn.
+6. Interrupt an active turn.
 7. Change model.
 8. Change reasoning effort.
 
@@ -263,64 +263,64 @@ Definition of done:
 
 ### Phase 5. Port approval and prompt flows
 
-1. Surface command/file/permission approvals inside the extension.
+1. Surface command, file, and permission approvals inside the extension.
 2. Surface request-user-input prompts.
-3. Make approval UX safe in compact and usable in expanded.
+3. Make approval UX safe in compact mode and usable in expanded mode.
 
 Definition of done:
 
 - approval-required turns do not strand the user
-- user input requests can be answered inside Messages
+- request-user-input flows can be answered inside Messages
 
 ### Phase 6. Simplify the containing app
 
 1. Keep setup and diagnostics.
-2. Remove or downgrade duplicated “primary control surface” UI if it no longer earns its keep.
+2. Remove or downgrade duplicated "primary control surface" UI if it no longer earns its keep.
 3. Make the host app clearly complementary to Messages, not a competing product surface.
 
 Definition of done:
 
-- host app feels like setup/fallback
-- Messages feels like primary quick-control experience
+- the host app feels like setup and fallback
+- Messages feels like the primary quick-control experience
 
 ### Phase 7. Validation
 
-1. Desktop relay tests:
-   - `py -3 -m unittest discover -s .\desktop\tests -v`
-   - live launch/status/pairing smoke
+1. Desktop relay validation:
+   - `py -3 -m unittest discover -s .\\desktop\\tests -v`
+   - live launch, status, and pairing smoke
 2. iOS host app validation:
    - build
    - save defaults
    - verify shared persistence
 3. Messages extension validation:
-   - launch in simulator/device from Messages drawer
+   - launch from the Messages drawer in simulator or device
    - compact to expanded transition
    - connect to relay
-   - new thread
-   - send prompt
+   - start a new thread
+   - send a prompt
    - interrupt
    - change model
-   - change reasoning
+   - change reasoning effort
    - handle approval
 
 ## Important Risks
 
 1. Xcode target creation is the biggest structural step.
-   - If this work is being done outside a Mac/Xcode environment, manual `project.pbxproj` editing becomes the riskiest part of the whole task.
+   - If this work is done outside a Mac or Xcode environment, manual `project.pbxproj` editing becomes the riskiest part of the entire task.
 
-2. Extension lifecycle is more constrained than a normal app.
+2. Extension lifecycle is more constrained than a normal app lifecycle.
    - Reconnect logic should be defensive.
    - Avoid assuming the extension stays alive long-term.
 
 3. Compact mode is not the place for the main composer.
-   - Use compact for launch/status/shortcuts.
-   - Use expanded for real interaction.
+   - Use compact mode for launch, status, and shortcuts.
+   - Use expanded mode for real interaction.
 
 4. Shared state must be explicit.
    - App Group for defaults.
-   - Keychain sharing for token.
+   - Keychain Sharing for the token.
 
-5. Do not overbuild the containing app before the extension is working.
+5. Do not overbuild the containing app before the extension works.
    - The user wants less bloat, not two heavyweight clients.
 
 ## Recommended Cleanup During Implementation
@@ -329,12 +329,12 @@ When the extension is working, delete or reduce:
 
 - duplicate standalone-only UI that no longer earns its keep
 - settings screens duplicated in both targets without a clear reason
-- any temporary extension bootstrap code that exists only to get the first build running
+- temporary extension bootstrap code that exists only to get the first build running
 
 Do not delete:
 
 - desktop relay
-- pairing/deep link path
+- pairing and deep link path
 - courier pod identity
 - shared Codex protocol client logic
 
@@ -354,7 +354,7 @@ The work is complete when all of the following are true:
    - change reasoning effort
 5. Shared defaults persist between the host app and extension.
 6. Sensitive token storage is not left in plain non-shared `UserDefaults`.
-7. The host app is simplified to setup/fallback instead of duplicating the full product.
+7. The host app is simplified to setup and fallback instead of duplicating the full product.
 
 ## Paste-Ready Prompt for the Next Thread
 
@@ -376,7 +376,7 @@ Turn Codex Remote into an iOS containing app plus an iMessage extension, with th
 Important context:
 - Apple docs verified April 20, 2026 support iMessage apps as app extensions inside an iOS app.
 - App extensions run in a separate process, so shared defaults must use an App Group.
-- Shared secrets/token should use Keychain Sharing.
+- Shared secrets and tokens should use Keychain Sharing.
 - iMessage text input belongs in expanded presentation style.
 - Keep this in the normal Messages context, not the media context.
 
@@ -396,25 +396,25 @@ Read first:
 What to implement:
 1. Add an iMessage extension target to the existing Xcode project.
 2. Split shared logic cleanly between host app and extension.
-3. Add App Group sharing for non-secret settings/defaults.
+3. Add App Group sharing for non-secret settings and defaults.
 4. Add Keychain Sharing for the capability token.
 5. Build compact and expanded Messages UIs.
 6. Support inside Messages:
-   - connect/disconnect
+   - connect and disconnect
    - start new thread
    - resume existing thread
    - send turn
    - interrupt turn
    - change model
    - change reasoning effort
-   - approval/prompt flows
-7. Simplify the containing app to setup/fallback instead of a second heavyweight control surface.
-8. Delete excess UI/scaffolding that no longer serves the new architecture.
+   - approval and prompt flows
+7. Simplify the containing app to setup and fallback instead of a second heavyweight control surface.
+8. Delete excess UI and scaffolding that no longer serves the new architecture.
 9. Validate what you can locally, explain what could not be validated, commit, and push.
 
 Constraints:
 - Do not rewrite the desktop protocol.
 - Do not remove the courier pod identity.
-- Prefer shared code over duplicate app/extension implementations.
+- Prefer shared code over duplicate app and extension implementations.
 - Be conservative with project.pbxproj edits and keep the repo coherent if Xcode is unavailable.
 ```
