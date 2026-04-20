@@ -21,14 +21,16 @@ final class CodexRemoteStore: ObservableObject {
     @Published var transientError: String?
 
     private let client = CodexRemoteClient()
+    private let profileStore: ConnectionProfileStore
     private var approvalContinuation: CheckedContinuation<Any, Never>?
     private var promptContinuation: CheckedContinuation<Any, Never>?
     private var streamedEntryIDs: [String: Int] = [:]
     private var activeTurnIDs: [String: String] = [:]
     private var hasAttemptedAutoConnect = false
 
-    init() {
-        self.profile = Self.loadProfile()
+    init(profileStore: ConnectionProfileStore = .standard) {
+        self.profileStore = profileStore
+        self.profile = profileStore.load()
 
         client.onNotification = { [weak self] method, params in
             self?.handleNotification(method: method, params: params)
@@ -85,9 +87,7 @@ final class CodexRemoteStore: ObservableObject {
     }
 
     func saveProfile() {
-        let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(profile) else { return }
-        UserDefaults.standard.set(data, forKey: ConnectionProfile.storageKey)
+        profileStore.save(profile)
     }
 
     func updateProfile(_ newProfile: ConnectionProfile) {
@@ -736,17 +736,6 @@ final class CodexRemoteStore: ObservableObject {
             }
         }
         return lines.joined(separator: "\n")
-    }
-
-    private static func loadProfile() -> ConnectionProfile {
-        let decoder = JSONDecoder()
-        if
-            let data = UserDefaults.standard.data(forKey: ConnectionProfile.storageKey),
-            let profile = try? decoder.decode(ConnectionProfile.self, from: data)
-        {
-            return profile
-        }
-        return .default
     }
 
     private func string(_ value: Any?) -> String? {

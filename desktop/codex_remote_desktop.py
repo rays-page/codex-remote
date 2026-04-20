@@ -19,7 +19,6 @@ from urllib.parse import urlencode
 APP_NAME = "Codex Remote"
 DEFAULT_PORT = 8765
 DEFAULT_HOST = "0.0.0.0"
-DEFAULT_PUBLIC_NAME = "Codex Remote"
 WINDOWS_APPS = Path(r"C:\Program Files\WindowsApps")
 LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
 STATE_ROOT = LOCALAPPDATA / "CodexRemote"
@@ -47,7 +46,6 @@ def default_config() -> dict[str, Any]:
         "listen_host": DEFAULT_HOST,
         "listen_port": DEFAULT_PORT,
         "public_ws_url": "",
-        "desktop_shortcut_name": DEFAULT_PUBLIC_NAME,
         "token_file": str(TOKEN_FILE),
     }
 
@@ -55,13 +53,19 @@ def default_config() -> dict[str, Any]:
 def load_config() -> dict[str, Any]:
     ensure_dirs()
     config = default_config()
+    should_rewrite = False
     if CONFIG_FILE.exists():
         try:
             stored = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
             if isinstance(stored, dict):
+                if "desktop_shortcut_name" in stored:
+                    stored.pop("desktop_shortcut_name", None)
+                    should_rewrite = True
                 config.update(stored)
         except json.JSONDecodeError:
             pass
+    if should_rewrite:
+        save_config(config)
     return config
 
 
@@ -75,7 +79,6 @@ class LaunchSettings:
     listen_host: str
     listen_port: int
     public_ws_url: str
-    shortcut_name: str
 
 
 def parse_settings(args: argparse.Namespace) -> LaunchSettings:
@@ -86,14 +89,11 @@ def parse_settings(args: argparse.Namespace) -> LaunchSettings:
         config["listen_port"] = args.listen_port
     if args.public_ws_url is not None:
         config["public_ws_url"] = args.public_ws_url
-    if args.shortcut_name:
-        config["desktop_shortcut_name"] = args.shortcut_name
     save_config(config)
     return LaunchSettings(
         listen_host=str(config["listen_host"]),
         listen_port=int(config["listen_port"]),
         public_ws_url=str(config.get("public_ws_url", "")),
-        shortcut_name=str(config.get("desktop_shortcut_name", DEFAULT_PUBLIC_NAME)),
     )
 
 
@@ -402,7 +402,6 @@ def build_parser() -> argparse.ArgumentParser:
     launch_parser.add_argument("--listen-host", default=None)
     launch_parser.add_argument("--listen-port", type=int, default=None)
     launch_parser.add_argument("--public-ws-url", default=None)
-    launch_parser.add_argument("--shortcut-name", default=None)
     launch_parser.add_argument("--refresh-runtime", action="store_true")
     launch_parser.add_argument("--foreground", action="store_true")
     launch_parser.set_defaults(handler=launch)

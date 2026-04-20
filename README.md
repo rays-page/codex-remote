@@ -1,5 +1,7 @@
 # Codex Remote
 
+Current direction: the next major milestone is converting the product into a containing iPhone app plus an iMessage extension. The handoff plan for that work lives in `docs/imessage-extension-handoff.md`.
+
 `Codex Remote` is a two-part self-hosted control surface for Codex:
 
 - a lightweight Windows launcher that stages the official Codex CLI runtime and exposes its websocket `app-server`

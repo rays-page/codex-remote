@@ -4,7 +4,6 @@ struct ConnectionSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     let models: [CodexModelOption]
-    let initialProfile: ConnectionProfile
     let connectionState: ConnectionState
     let onSave: (ConnectionProfile) -> Void
     let onConnect: () -> Void
@@ -21,7 +20,6 @@ struct ConnectionSheetView: View {
         onDisconnect: @escaping () -> Void
     ) {
         self.models = models
-        self.initialProfile = initialProfile
         self.connectionState = connectionState
         self.onSave = onSave
         self.onConnect = onConnect
