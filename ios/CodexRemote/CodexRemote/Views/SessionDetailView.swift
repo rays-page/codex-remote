@@ -413,11 +413,7 @@ private struct ApprovalCardView: View {
 
             HStack {
                 ForEach(prompt.decisions, id: \.self) { decision in
-                    Button(decisionLabel(decision)) {
-                        onDecision(decision)
-                    }
-                    .buttonStyle(decision == "decline" || decision == "cancel" ? .bordered : .borderedProminent)
-                    .tint(decision == "decline" || decision == "cancel" ? .red : AppTheme.accent)
+                    decisionButton(for: decision)
                 }
             }
         }
@@ -442,6 +438,23 @@ private struct ApprovalCardView: View {
             return "Cancel"
         default:
             return "Accept"
+        }
+    }
+
+    @ViewBuilder
+    private func decisionButton(for decision: String) -> some View {
+        if decision == "decline" || decision == "cancel" {
+            Button(decisionLabel(decision)) {
+                onDecision(decision)
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+        } else {
+            Button(decisionLabel(decision)) {
+                onDecision(decision)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.accent)
         }
     }
 }
