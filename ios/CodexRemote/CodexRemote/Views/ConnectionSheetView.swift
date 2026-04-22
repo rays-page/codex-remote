@@ -32,7 +32,7 @@ struct ConnectionSheetView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Relay") {
+                Section {
                     TextField("ws://192.168.1.50:8765", text: $draft.websocketURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -41,6 +41,8 @@ struct ConnectionSheetView: View {
                     SecureField("Capability token", text: $draft.token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                } header: {
+                    Text("Relay")
                 } footer: {
                     Text("The URL syncs through the app group. The capability token is stored through shared keychain access.")
                 }
