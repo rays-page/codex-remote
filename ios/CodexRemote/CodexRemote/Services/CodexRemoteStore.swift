@@ -5,6 +5,10 @@ import SwiftUI
 final class CodexRemoteStore: ObservableObject {
     typealias JSONObject = [String: Any]
 
+    private static func jsonOptionalString(_ value: String) -> Any {
+        value.isEmpty ? NSNull() : value
+    }
+
     @Published var profile: ConnectionProfile
     @Published var connectionState: ConnectionState = .disconnected
     @Published var threads: [RemoteThread] = []
@@ -277,8 +281,8 @@ final class CodexRemoteStore: ObservableObject {
                 let threadResult = try await client.sendRequest(
                     method: "thread/start",
                     params: [
-                        "model": profile.defaultModel.isEmpty ? NSNull() : profile.defaultModel,
-                        "cwd": profile.defaultWorkspace.isEmpty ? NSNull() : profile.defaultWorkspace,
+                        "model": Self.jsonOptionalString(profile.defaultModel),
+                        "cwd": Self.jsonOptionalString(profile.defaultWorkspace),
                         "approvalPolicy": profile.approvalPolicy.rawValue,
                         "sandbox": profile.defaultSandbox.rawValue,
                         "serviceName": "Codex Remote iOS",
@@ -322,9 +326,9 @@ final class CodexRemoteStore: ObservableObject {
                         "text_elements": []
                     ]
                 ],
-                "cwd": profile.defaultWorkspace.isEmpty ? NSNull() : profile.defaultWorkspace,
+                "cwd": Self.jsonOptionalString(profile.defaultWorkspace),
                 "approvalPolicy": profile.approvalPolicy.rawValue,
-                "model": profile.defaultModel.isEmpty ? NSNull() : profile.defaultModel,
+                "model": Self.jsonOptionalString(profile.defaultModel),
                 "effort": profile.reasoningEffort.rawValue,
                 "personality": profile.personality.rawValue
             ]
