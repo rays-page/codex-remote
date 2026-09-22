@@ -1,4 +1,7 @@
 # Codex Remote
+A setup for driving OpenAI's Codex from a phone. Built before OpenAI shipped native mobile support, which now covers most of what this was for.
+
+Kept up as a record of the approach.
 
 Current direction: `Codex Remote` now ships as a containing iPhone app plus an iMessage extension, with host companions on desktop that make it obvious when you are safe to step away and keep working from your phone.
 
