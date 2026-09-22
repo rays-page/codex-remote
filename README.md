@@ -3,7 +3,7 @@ A setup for driving OpenAI's Codex from a phone. Built before OpenAI shipped nat
 
 Kept up as a record of the approach.
 
-Current direction: `Codex Remote` now ships as a containing iPhone app plus an iMessage extension, with host companions on desktop that make it obvious when you are safe to step away and keep working from your phone.
+Where it ended up: `Codex Remote` shipped as a containing iPhone app plus an iMessage extension, with host companions on desktop that made it obvious when you were safe to step away and keep working from your phone.
 
 The handoff plan that drove the iPhone refactor remains in `docs/imessage-extension-handoff.md`.
 
